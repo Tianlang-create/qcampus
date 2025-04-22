@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Q校园+AI知识库</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        sidebar: {
+                            light: '#f3f4f6',
+                            dark: '#1f2937'
+                        },
+                        main: {
+                            light: '#ffffff',
+                            dark: '#181818'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .chat-bubble {
+            max-width: 80%;
+            min-width: 60px;
+            border-radius: 1rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            word-break: break-word;
+            display: inline-block;
+            width: auto;
+        }
+        .user-bubble {
+            background-color: #5D5CDE;
+            color: white;
+            margin-left: auto;
+            margin-right: 0;
+            border-bottom-right-radius: 0.25rem;
+            align-self: flex-end;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .assistant-bubble {
+            background-color: #f3f4f6;
+            color: #333;
+            margin-right: auto;
+            margin-left: 0;
+            border-bottom-left-radius: 0.25rem;
+            align-self: flex-start;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .dark .assistant-bubble {
+            background-color: #2d3748;
+            color: #f7fafc;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .knowledge-file {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dark .knowledge-file {
+            border-color: #4a5568;
+        }
+        .message-content p {
+            margin-bottom: 0.5rem;
+        }
+        .message-content:last-child p:last-child {
+            margin-bottom: 0;
+        }
+        .message-content pre {
+            background-color: rgba(0,0,0,0.05);
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin: 0.5rem 0;
+            overflow-x: auto;
+        }
+        .dark .message-content pre {
+            background-color: rgba(255,255,255,0.1);
+        }
+        .message-content code {
+            font-family: monospace;
+        }
+        .message-wrapper {
+            display: flex;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4a5568;
+        }
+        /* 浮动按钮样式 */
+        .float-button {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            background-color: #5D5CDE;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .float-button:hover {
+            transform: scale(1.1);
+        }
+        /* 删除聊天记录按钮 */
+        .chat-item-actions {
+            display: none;
+        }
+        .chat-item:hover .chat-item-actions {
+            display: flex;
+        }
+        .chat-item {
+            transition: all 0.2s ease;
+        }
+        .chat-item.active {
+            background-color: rgba(93, 92, 222, 0.1);
+            border-left: 3px solid #5D5CDE;
+        }
+    </style>
+    <meta name="author" content="天狼">
+</head>
+<body class="font-sans antialiased">
+<div class="h-screen flex flex-col lg:flex-row bg-main-light dark:bg-main-dark text-gray-800 dark:text-gray-200">
+    <!-- 侧边栏 -->
+    <aside class="w-full lg:w-72 bg-sidebar-light dark:bg-sidebar-dark border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <!-- 应用标题 -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h1 class="text-xl font-bold text-primary">AI知识库助手</h1>
+        </div>
+
+        <!-- 侧边栏导航 -->
+        <nav class="flex flex-row lg:flex-col gap-2 p-4 overflow-x-auto lg:overflow-x-visible">
+            <button id="chat-tab-btn" class="flex items-center gap-2 p-2 rounded-lg bg-primary bg-opacity-10 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span>聊天</span>
+            </button>
+
+            <button id="knowledge-tab-btn" class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>知识库</span>
+            </button>
+        </nav>
+
+        <!-- 聊天历史记录 -->
+        <div class="p-4 flex-grow overflow-y-auto" id="chat-history-sidebar">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-sm uppercase font-semibold text-gray-500 dark:text-gray-400">聊天记录</h2>
+                <button id="new-chat-btn" class="text-xs text-primary hover:underline flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    新对话
+                </button>
+            </div>
+            <div id="chat-history-list" class="space-y-2">
+                <!-- 聊天历史记录会动态添加在这里 -->
+            </div>
+        </div>
+
+        <!-- 设置按钮 -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+            <button id="api-key-btn" class="w-full flex items-center justify-center gap-2 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                <span>设置API密钥</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="flex-grow flex flex-col overflow-hidden">
+        <!-- 聊天标签内容 -->
+        <div id="chat-tab" class="flex-grow flex flex-col h-full">
+            <!-- 聊天消息 -->
+            <div id="chat-messages" class="flex-grow p-4 overflow-y-auto">
+                <div class="flex justify-center items-center h-full flex-col gap-4 text-center text-gray-500 dark:text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <h2 class="text-xl font-semibold">欢迎使用AI知识库助手</h2>
+                    <p class="max-w-md">提出任何问题或上传知识库文件获取更准确的回答。</p>
+                </div>
+            </div>
+
+            <!-- 聊天输入框 -->
+            <div class="border-t border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex gap-2">
+                    <input id="chat-input" type="text" placeholder="请输入您的问题..." class="flex-grow p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <button id="send-btn" class="bg-primary hover:bg-opacity-90 text-white p-3 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="active-knowledge-base" class="text-sm mt-2 text-gray-500 dark:text-gray-400 hidden">
+                    <span class="font-medium">当前激活的知识库：</span>
+                    <span id="active-kb-name">无</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 知识库标签内容 -->
+        <div id="knowledge-tab" class="flex-grow flex flex-col h-full hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-xl font-semibold">知识库管理</h2>
+                <p class="text-gray-500 dark:text-gray-400 mt-1">上传和管理知识库文件（PDF、DOCX、TXT、JSON）</p>
+            </div>
+
+            <!-- 上传部分 -->
+            <div id="admin-upload-section" class="p-4 border-b border-gray-200 dark:border-gray-700 hidden">
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <label for="file-upload" class="flex-grow p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="flex flex-col items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">点击上传或拖放文件</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">PDF、DOCX、TXT、JSON（最大300MB）</p>
+                        </div>
+                        <input id="file-upload" type="file" class="hidden" accept=".pdf,.docx,.txt,.json" multiple />
+                    </label>
+                </div>
+            </div>
+
+            <!-- 非管理员提示 -->
+            <div id="non-admin-notice" class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">管理员功能</h3>
+                            <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                <p>只有管理员可以添加或修改知识库文件。请联系管理员或使用管理员账号登录。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 知识库文件列表 -->
+            <div class="flex-grow p-4 overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm uppercase font-semibold text-gray-500 dark:text-gray-400">已上传文件</h3>
+                    <button id="search-kb-btn" class="text-sm text-primary hover:underline">搜索知识库</button>
+                </div>
+
+                <div id="knowledge-files" class="space-y-2">
+                    <!-- 知识库文件将动态添加在这里 -->
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4" id="no-files-message">
+                        暂无上传的知识库文件
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 知识库管理员登录按钮 -->
+<div id="admin-login-button" class="float-button">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>
+</div>
+
+<!-- 管理员登录弹窗 -->
+<div id="admin-login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <h2 class="text-xl font-semibold mb-4">管理员登录</h2>
+        <div class="mb-4">
+            <label for="admin-username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名</label>
+            <input id="admin-username" type="text" placeholder="admin666" class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base" />
+        </div>
+        <div class="mb-4">
+            <label for="admin-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码</label>
+            <input id="admin-password" type="password" placeholder="******" class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base" />
+        </div>
+        <div class="mb-4 hidden text-red-500" id="login-error">
+            用户名或密码错误，请重试。
+        </div>
+        <div class="flex justify-end gap-2">
+            <button id="admin-login-cancel" class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">取消</button>
+            <button id="admin-login-submit" class="px-4 py-2 rounded-md bg-primary text-white hover:bg-opacity-90">登录</button>
+        </div>
+    </div>
+</div>
+
+<!-- 知识库搜索弹窗 -->
+<div id="search-kb-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl">
+        <h2 class="text-xl font-semibold mb-4">搜索知识库</h2>
+        <div class="mb-4">
+            <div class="flex gap-2">
+                <input id="kb-search-input" type="text" placeholder="输入关键词搜索..." class="flex-grow p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base" />
+                <button id="kb-search-btn" class="px-4 py-2 rounded-md bg-primary text-white hover:bg-opacity-90">搜索</button>
+            </div>
+        </div>
+        <div class="max-h-96 overflow-y-auto mb-4">
+            <div id="kb-search-results" class="space-y-2">
+                <!-- 搜索结果将在这里显示 -->
+                <div class="text-center text-gray-500 dark:text-gray-400 py-4" id="kb-search-placeholder">
+                    输入关键词开始搜索
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end">
+            <button id="kb-search-close" class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- API密钥弹窗 -->
+<div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <h2 class="text-xl font-semibold mb-4">设置DeepSeek API密钥</h2>
+        <div class="mb-4">
+            <label for="api-key-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API密钥</label>
+            <input id="api-key-input" type="password" placeholder="sk-..." class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base" />
+        </div>
+        <div class="flex justify-end gap-2">
+            <button id="api-key-cancel" class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">取消</button>
+            <button id="api-key-save" class="px-4 py-2 rounded-md bg-primary text-white hover:bg-opacity-90">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除聊天确认弹窗 -->
+<div id="delete-chat-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <h2 class="text-xl font-semibold mb-4">删除聊天</h2>
+        <p class="mb-4">确定要删除这个聊天吗？此操作不可撤销。</p>
+        <div class="flex justify-end gap-2">
+            <button id="delete-chat-cancel" class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">取消</button>
+            <button id="delete-chat-confirm" class="px-4 py-2 rounded-md bg-red-500 text-white hover:bg-red-600">删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- DeepSeek JS -->
+<script>
+    // DeepSeek API 封装，OpenAI 风格
+    // 使用 fetch 实现简单的 deepseek-chat 消息发送
+
+    /**
+     * 发送消息到 DeepSeek Chat API
+     * @param {string} apiKey - DeepSeek API Key
+     * @param {Array} messages - OpenAI 风格的 messages 数组
+     * @param {boolean} stream - 是否流式返回（默认 false）
+     * @returns {Promise<object>} - DeepSeek 响应
+     */
+    async function sendDeepSeekMessage({ apiKey, messages, stream = false }) {
+        const url = "https://api.deepseek.com/v1/chat/completions";
+        const headers = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+        };
+        const body = JSON.stringify({
+            model: "deepseek-chat",
+            messages,
+            stream
+        });
+        const resp = await fetch(url, {
+            method: "POST",
+            headers,
+            body
+        });
+        if (!resp.ok) {
+            const errorText = await resp.text().catch(() => '无法获取错误详情');
+            console.error('DeepSeek API 错误详情:', errorText);
+            throw new Error(`DeepSeek API 错误: ${resp.status} ${resp.statusText}\n${errorText}`);
+        }
+        return await resp.json();
+    }
+
+    // 确保函数在浏览器环境中可用
+    if (typeof module !== 'undefined') {
+        module.exports = { sendDeepSeekMessage };
+    } else {
+        // 在浏览器环境中，将函数直接暴露到全局作用域
+        window.sendDeepSeekMessage = sendDeepSeekMessage;
+    }
+</script>
+
+<!-- 知识库模拟数据和搜索引擎 -->
+<script>
+    // 模拟知识库数据结构
+    class KnowledgeBase {
+        constructor() {
+            this.files = [];
+            this.index = {}; // 简单的倒排索引
+            this.totalSize = 0; // 总大小（字节）
+            this.maxSize = 300 * 1024 * 1024; // 300MB
+        }
+
+        // 添加文件到知识库
+        addFile(file) {
+            // 检查总大小是否超过限制
+            if (this.totalSize + file.size > this.maxSize) {
+                throw new Error(`添加此文件将超过知识库容量限制（300MB）`);
+            }
+
+            // 检查文件是否已存在
+            const existingFileIndex = this.files.findIndex(f => f.id === file.id);
+            if (existingFileIndex !== -1) {
+                // 更新文件
+                this.totalSize = this.totalSize - this.files[existingFileIndex].size + file.size;
+                this.files[existingFileIndex] = file;
+                this._indexFile(file);
+                return file.id;
+            }
+
+            // 添加新文件
+            this.files.push(file);
+            this.totalSize += file.size;
+            this._indexFile(file);
+            return file.id;
+        }
+
+        // 从知识库中移除文件
+        removeFile(fileId) {
+            const fileIndex = this.files.findIndex(f => f.id === fileId);
+            if (fileIndex === -1) return false;
+
+            // 更新总大小
+            this.totalSize -= this.files[fileIndex].size;
+
+            // 从索引中移除
+            this._removeFromIndex(this.files[fileIndex]);
+
+            // 从数组中移除
+            this.files.splice(fileIndex, 1);
+            return true;
+        }
+
+        // 搜索知识库
+        search(query, limit = 10) {
+            if (!query.trim()) return [];
+
+            // 将查询拆分为关键词
+            const keywords = query.toLowerCase().split(/\s+/);
+            const results = new Map();
+
+            // 对每个关键词搜索索引
+            for (const keyword of keywords) {
+                if (keyword.length < 2) continue; // 忽略太短的关键词
+
+                // 寻找匹配的术语
+                const matchingTerms = Object.keys(this.index).filter(term =>
+                    term.includes(keyword)
+                );
+
+                // 处理每个匹配的术语
+                for (const term of matchingTerms) {
+                    for (const match of this.index[term]) {
+                        if (!results.has(match.fileId)) {
+                            results.set(match.fileId, {
+                                file: this.getFile(match.fileId),
+                                score: 0,
+                                snippets: []
+                            });
+                        }
+
+                        const result = results.get(match.fileId);
+                        result.score += match.count;
+
+                        // 添加上下文片段
+                        if (result.snippets.length < 3) {
+                            const snippet = this._getSnippet(match.fileId, match.positions[0], 150);
+                            if (snippet && !result.snippets.includes(snippet)) {
+                                result.snippets.push(snippet);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 排序并限制结果
+            return Array.from(results.values())
+                .sort((a, b) => b.score - a.score)
+                .slice(0, limit);
+        }
+
+        // 获取知识片段
+        getKnowledgeForQuery(query) {
+            const searchResults = this.search(query, 5);
+            let knowledge = '';
+
+            for (const result of searchResults) {
+                knowledge += `--- 从《${result.file.name}》中提取 ---\n`;
+                for (const snippet of result.snippets) {
+                    knowledge += snippet + '\n\n';
+                }
+            }
+
+            return knowledge;
+        }
+
+        // 获取文件
+        getFile(fileId) {
+            return this.files.find(f => f.id === fileId);
+        }
+
+        // 获取所有文件
+        getAllFiles() {
+            return [...this.files];
+        }
+
+        // 获取知识库统计信息
+        getStats() {
+            return {
+                fileCount: this.files.length,
+                totalSize: this.totalSize,
+                maxSize: this.maxSize,
+                usagePercentage: (this.totalSize / this.maxSize) * 100
+            };
+        }
+
+        // 私有方法：为文件建立索引
+        _indexFile(file) {
+            // 首先从索引中删除现有的文件项
+            this._removeFromIndex(file);
+
+            // 处理文件内容并创建索引
+            const content = file.content || '';
+            const words = content.toLowerCase()
+                .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ') // 保留中文、字母和数字
+                .split(/\s+/)
+                .filter(w => w.length > 1); // 过滤掉单字符
+
+            // 记录词频和位置
+            const wordMap = new Map();
+            words.forEach((word, pos) => {
+                if (!wordMap.has(word)) {
+                    wordMap.set(word, { count: 0, positions: [] });
+                }
+                const entry = wordMap.get(word);
+                entry.count++;
+                entry.positions.push(pos);
+            });
+
+            // 更新索引
+            for (const [word, info] of wordMap.entries()) {
+                if (!this.index[word]) {
+                    this.index[word] = [];
+                }
+                this.index[word].push({
+                    fileId: file.id,
+                    count: info.count,
+                    positions: info.positions
+                });
+            }
+        }
+
+        // 私有方法：从索引中移除文件
+        _removeFromIndex(file) {
+            for (const term in this.index) {
+                this.index[term] = this.index[term].filter(entry => entry.fileId !== file.id);
+                // 如果索引项为空，删除该项
+                if (this.index[term].length === 0) {
+                    delete this.index[term];
+                }
+            }
+        }
+
+        // 私有方法：获取上下文片段
+        _getSnippet(fileId, position, length = 150) {
+            const file = this.getFile(fileId);
+            if (!file || !file.content) return null;
+
+            // 计算起始和结束位置
+            const words = file.content.split(/\s+/);
+            const start = Math.max(0, position - Math.floor(length / 2));
+            const end = Math.min(words.length, position + Math.ceil(length / 2));
+
+            // 提取片段
+            return words.slice(start, end).join(' ');
+        }
+    }
+
+    // 创建模拟文件数据
+    function createMockKnowledgeBase() {
+        const kb = new KnowledgeBase();
+
+        // 封装PDF文件
+        const mockPDFs = [
+            {
+                id: 'pdf-001',
+                name: '校园服务指南.pdf',
+                type: 'application/pdf',
+                size: 15 * 1024 * 1024, // 15MB
+                content: `
+                Q校园服务指南
+
+                第一章：校园地图与设施
+                学校位于城市中心，占地面积约1000亩，拥有教学楼20栋，宿舍楼10栋，图书馆1座，体育馆2座，食堂5个。
+                图书馆开放时间：周一至周日 8:00-22:00，馆藏图书超过200万册，电子资源丰富。
+                体育设施包括：田径场、足球场、篮球场、排球场、网球场等，学生可凭校园卡免费使用。
+
+                第二章：教务管理
+                选课系统：每学期开学前两周为选课阶段，学生可登录教务系统进行选课。
+                成绩查询：期末考试结束后2周内公布成绩，学生可通过教务系统查询。
+                学分要求：本科生需修满140学分方可毕业，其中通识课程40学分，专业必修课70学分，选修课30学分。
+
+                第三章：学生服务
+                奖学金：学校设有国家奖学金、学业奖学金、单项奖学金等多种奖学金，详情可咨询学生处。
+                医疗服务：校医院位于行政楼旁，提供基本医疗服务，开放时间为周一至周五 8:00-17:30。
+                心理咨询：心理咨询中心位于图书馆三楼，提供免费心理咨询服务，需提前预约。
+
+                第四章：校园网络
+                WiFi覆盖：校园内全面覆盖免费WiFi，账号为学号，初始密码为身份证后六位。
+                网络故障：遇到网络问题可联系信息中心，电话：123-4567。
+                计算机房：图书馆和各教学楼均设有公共计算机房，学生可凭校园卡使用。
+
+                第五章：校车服务
+                校区间穿梭：校车每30分钟一班，首班7:00，末班22:00，路线覆盖各校区。
+                乘车要求：刷校园卡乘车，每月有30次免费乘车次数，超出部分每次收费2元。
+                校车网点：学校共设10个校车站点，详细位置请参考校园地图。
+                `
+            },
+            {
+                id: 'pdf-002',
+                name: '学生手册2023版.pdf',
+                type: 'application/pdf',
+                size: 22 * 1024 * 1024, // 22MB
+                content: `
+                学生手册2023版
+
+                第一部分：学校概况
+                学校创办于1985年，是一所以工科为主，涵盖理、工、文、管、法、艺等学科的综合性大学。
+                建校以来，已培养各类人才超过10万人，其中不乏行业精英和社会栋梁。
+                学校秉承"厚德、博学、求实、创新"的校训，致力于培养高素质创新人才。
+
+                第二部分：学籍管理
+                学籍注册：每学期开学两周内，学生须持本人校园卡到所在学院办理注册手续。
+                休学流程：因身体或其他原因需要休学的学生，可向所在学院提出申请，经批准后办理休学手续。
+                退学规定：学生有下列情形之一者，应予退学：1）学业成绩未达标准；2）休学期满未按规定申请复学；3）经指定医院诊断，患有疾病无法继续学习；4）未经批准连续两周未参加学校规定的教学活动；5）超过学校规定期限未注册且无正当理由。
+
+                第三部分：课程及考试
+                课程分类：课程分为必修课、选修课和通识课三大类。
+                考试形式：考试分为闭卷、开卷和论文等多种形式，以任课教师安排为准。
+                成绩评定：课程成绩采用百分制或等级制，60分或及格以上为通过。
+
+                第四部分：奖惩制度
+                奖学金：设有国家奖学金（8000元/年）、国家励志奖学金（5000元/年）、学校奖学金（特等、一等、二等、三等）等。
+                处分规定：学生违反校规校纪，视情节轻重给予警告、严重警告、记过、留校察看、开除学籍等处分。
+                申诉途径：学生对处分决定有异议的，可在收到处分决定书之日起10个工作日内，向学生申诉处理委员会提出书面申诉。
+
+                第五部分：校园生活
+                宿舍管理：宿舍楼开放时间6:00-23:00，需凭校园卡进出；宿舍内禁止使用大功率电器；保持宿舍清洁卫生；遵守作息时间。
+                图书借阅：每人最多可借图书10本，借期30天，可续借两次，每次续借期限为15天。
+                餐饮服务：学校共有5个食堂，提供多种风味餐饮，价格合理，使用校园卡消费有9折优惠。
+                `
+            },
+            {
+                id: 'pdf-003',
+                name: '专业培养方案.pdf',
+                type: 'application/pdf',
+                size: 18 * 1024 * 1024, // 18MB
+                content: `
+                专业培养方案
+
+                计算机科学与技术专业
+
+                一、培养目标
+                本专业旨在培养具有良好的科学素养，系统掌握计算机科学与技术的基本理论、基本知识和基本技能，能够从事计算机软硬件系统设计、开发及应用的高级专门人才。
+
+                二、核心课程
+                程序设计基础、数据结构、计算机组成原理、操作系统、计算机网络、数据库系统、软件工程、人工智能导论。
+
+                三、实践教学
+                包括程序设计实验、数据结构实验、计算机组成原理实验、操作系统实验、数据库系统实验、毕业设计等。
+
+                四、学分要求
+                总学分：140学分
+                理论课程：100学分
+                实践环节：30学分
+                创新创业：10学分
+
+                电气工程及其自动化专业
+
+                一、培养目标
+                培养掌握电子技术、电力电子技术、计算机控制技术等方面的基本理论和基本技能，能在电气工程领域从事设计、研发、运行、管理工作的高级工程技术人才。
+
+                二、核心课程
+                电路理论、电机学、电力电子技术、自动控制理论、电力系统分析、电气设备及其控制、单片机原理及应用。
+
+                三、实践教学
+                电子技术实验、电机与电力拖动实验、电力电子技术实验、自动控制实验、毕业设计等。
+
+                四、学分要求
+                总学分：140学分
+                理论课程：100学分
+                实践环节：30学分
+                创新创业：10学分
+
+                会计学专业
+
+                一、培养目标
+                培养具备管理、经济、法律和会计学等方面的知识和能力，能在企事业单位、政府部门及金融机构从事会计实务与研究工作的专门人才。
+
+                二、核心课程
+                基础会计、中级财务会计、高级财务会计、成本会计、管理会计、审计学、财务管理、会计信息系统。
+
+                三、实践教学
+                会计基本技能训练、财务软件应用、会计综合实训、毕业实习等。
+
+                四、学分要求
+                总学分：140学分
+                理论课程：95学分
+                实践环节：35学分
+                创新创业：10学分
+                `
+            }
+        ];
+
+        // 模拟DOCX文件
+        const mockDOCXs = [
+            {
+                id: 'docx-001',
+                name: '校园活动指南.docx',
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                size: 8 * 1024 * 1024, // 8MB
+                content: `
+                校园活动指南
+
+                社团活动
+
+                学校现有社团100余个，涵盖学术科技、文化艺术、体育竞技、社会实践等多个类别。
+                社团招新时间：每年3月和9月
+                社团活动场地：学生活动中心、各教学楼公共区域、户外活动广场
+                社团经费申请：由社团负责人向学生会提交活动计划和预算，审批通过后可领取活动经费
+
+                文化节
+
+                校园文化节每年5月举办，为期两周，包括开幕式、系列活动和闭幕式。
+                主要活动：校园歌手大赛、舞蹈大赛、辩论赛、才艺展示、美食节等
+                参与方式：个人可报名参加各项比赛，也可作为观众参与互动
+                报名方式：关注校园公众号或到学生会办公室现场报名
+
+                学术讲座
+
+                学校定期邀请知名学者、企业家、社会名人来校举办讲座。
+                讲座信息发布渠道：校园网、公众号、海报栏
+                参与方式：大部分讲座免费开放，部分特殊讲座需提前预约
+                学分认证：参加讲座可获得第二课堂学分，需在现场签到
+
+                体育赛事
+
+                校运会：每年10月举行，为期3天，设田径、游泳等项目
+                校园足球联赛：每年3月-6月举行，分院系组和自由组两个组别
+                三对三篮球赛：每年4月举行，分男子组和女子组
+                报名方式：由各院系体育委员组织报名或个人直接向体育部报名
+
+                志愿服务
+
+                校内志愿服务：图书馆志愿者、校园导游、新生引导员等
+                校外志愿服务：社区服务、支教、环保行动等
+                国际志愿服务：与国际组织合作的海外志愿项目
+                志愿时长认证：完成志愿服务后，可在志愿者管理系统登记并积累志愿时长
+                `
+            },
+            {
+                id: 'docx-002',
+                name: '教师发展中心项目介绍.docx',
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                size: 12 * 1024 * 1024, // 12MB
+                content: `
+                教师发展中心项目介绍
+
+                新教师培训项目
+
+                对象：新入职教师
+                内容：教学技能提升、教学管理系统使用、师德师风建设
+                时间：每年8月集中培训，为期两周
+                考核方式：培训考核+教学展示
+
+                教学创新项目
+
+                项目类别：教学方法创新、课程内容更新、教材建设、实践教学改革
+                申请流程：提交申请书→学院初审→中心评审→立项→中期检查→结项
+                资助力度：重点项目10万元/项，一般项目5万元/项
+                结项要求：提交结项报告、教学设计方案、实施效果分析
+
+                教学能力提升计划
+
+                培训内容：现代教学技术应用、课堂教学组织、教学评价方法
+                培训方式：专题讲座、工作坊、教学观摩、案例研讨
+                培训周期：每学期举办8-10次，教师可自愿报名参加
+                参与激励：纳入教师考核体系，作为职称评定的参考依据
+
+                名师引领计划
+
+                名师选拔：从校内外选拔教学经验丰富、教学效果优秀的教师担任名师
+                指导方式：集体讲座、一对一指导、教学示范、经验分享
+                覆盖对象：青年教师、教学效果待提高教师
+                预期成效：帮助教师解决教学实际问题，提升教学水平和教学满意度
+
+                教学研究项目
+
+                研究方向：教学模式研究、学生学习方式研究、课程评价研究
+                立项条件：具有创新性、实用性、推广价值
+                研究周期：1-2年
+                成果形式：研究报告、论文、教学案例、教学模式等
+                `
+            }
+        ];
+
+        // 模拟TXT文件
+        const mockTXTs = [
+            {
+                id: 'txt-001',
+                name: '常见问题解答.txt',
+                type: 'text/plain',
+                size: 3 * 1024 * 1024, // 3MB
+                content: `
+                常见问题解答(FAQ)
+
+                1. 如何申请学生证补办？
+                答：学生证遗失需到学生服务中心填写《学生证补办申请表》，附一寸照片一张，交费20元，5个工作日后领取。
+
+                2. 校园卡丢失如何挂失？
+                答：方式一：登录校园卡管理系统进行在线挂失；方式二：到校园卡服务中心现场办理；方式三：拨打挂失热线123-4567。
+
+                3. 如何申请成绩单？
+                答：可通过以下途径申请成绩单：1）教务系统在线申请打印；2）到教务处服务窗口办理；3）自助打印机打印。中英文成绩单盖章需到教务处办理。
+
+                4. 宿舍维修如何申请？
+                答：通过"校园服务"小程序提交维修申请，或直接联系宿管员。水电紧急故障可拨打维修热线：123-4568。
+
+                5. 如何使用图书馆资源？
+                答：凭校园卡可进入图书馆，借阅图书；通过图书馆网站可访问电子资源，校外访问需要使用VPN。
+
+                6. 校内WiFi如何连接？
+                答：搜索并连接"Campus-WiFi"，使用学号和初始密码（身份证后六位）登录。
+
+                7. 如何预约体育场地？
+                答：通过"校园服务"小程序或体育场馆管理系统进行在线预约。
+
+                8. 心理咨询服务如何预约？
+                答：可通过以下方式预约：1）"心理健康"小程序预约；2）拨打咨询热线123-4569；3）直接到心理咨询中心现场预约。
+
+                9. 如何申请勤工助学岗位？
+                答：关注"学生工作处"公众号，定期查看岗位发布信息，按要求提交申请。
+
+                10. 校园快递如何收发？
+                答：学校设有多个快递服务点，位于各个校区。收快递可凭取件码到对应快递点取件，发快递可直接前往快递点办理。
+                `
+            },
+            {
+                id: 'txt-002',
+                name: '校历2023-2024.txt',
+                type: 'text/plain',
+                size: 1 * 1024 * 1024, // 1MB
+                content: `
+                2023-2024学年校历
+
+                第一学期
+
+                8月25日-8月27日：新生报到
+                8月28日-9月1日：新生入学教育
+                9月4日：秋季学期正式上课
+                9月29日-10月6日：国庆节、中秋节假期
+                11月11日-11月12日：校运会
+                12月25日-12月29日：期末考试周
+                12月30日-2月25日：寒假
+
+                第二学期
+
+                2月26日：春季学期正式上课
+                4月4日-4月6日：清明节假期
+                5月1日-5月5日：劳动节假期
+                5月10日-5月24日：校园文化节
+                6月8日-6月10日：端午节假期
+                7月1日-7月5日：期末考试周
+                7月6日-8月30日：暑假
+
+                注意事项：
+
+                1. 各院系可在考试周安排考试，具体时间以院系通知为准
+                2. 节假日安排如遇国家调整，以国家规定为准
+                3. 各项大型活动日期可能会有微调，以学校正式通知为准
+                `
+            }
+        ];
+
+        // 模拟JSON文件
+        const mockJSONs = [
+            {
+                id: 'json-001',
+                name: '教师名录.json',
+                type: 'application/json',
+                size: 5 * 1024 * 1024, // 5MB
+                content: `
+                {
+                    "college": "计算机学院",
+                    "departments": [
+                        {
+                            "name": "计算机科学与技术系",
+                            "head": "张伟",
+                            "teachers": [
+                                {
+                                    "id": "T2001",
+                                    "name": "李明",
+                                    "title": "教授",
+                                    "email": "liming@university.edu",
+                                    "research": "人工智能、机器学习",
+                                    "office": "计算机楼A501"
+                                },
+                                {
+                                    "id": "T2002",
+                                    "name": "王芳",
+                                    "title": "副教授",
+                                    "email": "wangfang@university.edu",
+                                    "research": "计算机视觉、深度学习",
+                                    "office": "计算机楼A502"
+                                },
+                                {
+                                    "id": "T2003",
+                                    "name": "张伟",
+                                    "title": "教授",
+                                    "email": "zhangwei@university.edu",
+                                    "research": "数据库系统、大数据",
+                                    "office": "计算机楼A503"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "软件工程系",
+                            "head": "刘强",
+                            "teachers": [
+                                {
+                                    "id": "T2004",
+                                    "name": "刘强",
+                                    "title": "教授",
+                                    "email": "liuqiang@university.edu",
+                                    "research": "软件工程、系统架构",
+                                    "office": "计算机楼B401"
+                                },
+                                {
+                                    "id": "T2005",
+                                    "name": "陈静",
+                                    "title": "副教授",
+                                    "email": "chenjing@university.edu",
+                                    "research": "软件测试、质量保证",
+                                    "office": "计算机楼B402"
+                                }
+                            ]
+                        }
+                    ]
+                }
+                `
+            },
+            {
+                id: 'json-002',
+                name: '课程表.json',
+                type: 'application/json',
+                size: 7 * 1024 * 1024, // 7MB
+                content: `
+                {
+                    "semester": "2023-2024-1",
+                    "classes": [
+                        {
+                            "className": "计算机科学与技术2021级1班",
+                            "courses": [
+                                {
+                                    "courseId": "CS301",
+                                    "courseName": "数据结构",
+                                    "teacher": "王芳",
+                                    "schedule": [
+                                        {
+                                            "day": 1,
+                                            "timeSlot": [1, 2],
+                                            "location": "教学楼A203"
+                                        },
+                                        {
+                                            "day": 3,
+                                            "timeSlot": [3, 4],
+                                            "location": "教学楼A203"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "courseId": "CS302",
+                                    "courseName": "操作系统",
+                                    "teacher": "李明",
+                                    "schedule": [
+                                        {
+                                            "day": 2,
+                                            "timeSlot": [5, 6],
+                                            "location": "教学楼B305"
+                                        },
+                                        {
+                                            "day": 4,
+                                            "timeSlot": [7, 8],
+                                            "location": "教学楼B305"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "className": "软件工程2022级2班",
+                            "courses": [
+                                {
+                                    "courseId": "SE201",
+                                    "courseName": "面向对象程序设计",
+                                    "teacher": "陈静",
+                                    "schedule": [
+                                        {
+                                            "day": 1,
+                                            "timeSlot": [3, 4],
+                                            "location": "教学楼C101"
+                                        },
+                                        {
+                                            "day": 3,
+                                            "timeSlot": [1, 2],
+                                            "location": "教学楼C101"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "courseId": "SE202",
+                                    "courseName": "软件工程导论",
+                                    "teacher": "刘强",
+                                    "schedule": [
+                                        {
+                                            "day": 2,
+                                            "timeSlot": [3, 4],
+                                            "location": "教学楼A105"
+                                        },
+                                        {
+                                            "day": 4,
+                                            "timeSlot": [5, 6],
+                                            "location": "教学楼A105"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+                `
+            }
+        ];
+
+        // 将模拟文件添加到知识库
+        [...mockPDFs, ...mockDOCXs, ...mockTXTs, ...mockJSONs].forEach(file => {
+            kb.addFile(file);
+        });
+
+        return kb;
+    }
+</script>
+
+<!-- 主应用JS -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 检查暗黑模式偏好
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+
+        // 监听颜色方案变化
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // DOM元素
+        const chatTabBtn = document.getElementById('chat-tab-btn');
+        const knowledgeTabBtn = document.getElementById('knowledge-tab-btn');
+        const chatTab = document.getElementById('chat-tab');
+        const knowledgeTab = document.getElementById('knowledge-tab');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const chatMessages = document.getElementById('chat-messages');
+        const fileUpload = document.getElementById('file-upload');
+        const knowledgeFiles = document.getElementById('knowledge-files');
+        const noFilesMessage = document.getElementById('no-files-message');
+        const apiKeyBtn = document.getElementById('api-key-btn');
+        const apiKeyModal = document.getElementById('api-key-modal');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const apiKeySave = document.getElementById('api-key-save');
+        const apiKeyCancel = document.getElementById('api-key-cancel');
+        const activeKnowledgeBase = document.getElementById('active-knowledge-base');
+        const activeKbName = document.getElementById('active-kb-name');
+        const chatHistoryList = document.getElementById('chat-history-list');
+        const adminLoginButton = document.getElementById('admin-login-button');
+        const adminLoginModal = document.getElementById('admin-login-modal');
+        const adminUsername = document.getElementById('admin-username');
+        const adminPassword = document.getElementById('admin-password');
+        const adminLoginSubmit = document.getElementById('admin-login-submit');
+        const adminLoginCancel = document.getElementById('admin-login-cancel');
+        const loginError = document.getElementById('login-error');
+        const adminUploadSection = document.getElementById('admin-upload-section');
+        const nonAdminNotice = document.getElementById('non-admin-notice');
+        const searchKbBtn = document.getElementById('search-kb-btn');
+        const searchKbModal = document.getElementById('search-kb-modal');
+        const kbSearchInput = document.getElementById('kb-search-input');
+        const kbSearchBtn = document.getElementById('kb-search-btn');
+        const kbSearchResults = document.getElementById('kb-search-results');
+        const kbSearchClose = document.getElementById('kb-search-close');
+        const kbSearchPlaceholder = document.getElementById('kb-search-placeholder');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const deleteChatModal = document.getElementById('delete-chat-modal');
+        const deleteChatCancel = document.getElementById('delete-chat-cancel');
+        const deleteChatConfirm = document.getElementById('delete-chat-confirm');
+
+        // 状态
+        let apiKey = localStorage.getItem('deepseek_api_key') || '';
+        let isAdmin = localStorage.getItem('is_admin') === 'true';
+        let knowledgeBase = createMockKnowledgeBase(); // 使用模拟的知识库
+        let activeKnowledgeBaseFile = null;
+        let chatHistory = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        let currentChatId = null;
+        let chatToDelete = null; // 存储将要删除的聊天ID
+
+        // 初始化UI
+        function init() {
+            // 从存储中设置API密钥
+            apiKeyInput.value = apiKey;
+
+            // 检查管理员状态并更新UI
+            updateAdminUI();
+
+            // 加载知识库文件列表
+            renderKnowledgeBaseFiles();
+
+            // 加载聊天历史
+            renderChatHistory();
+
+            // 如果存在聊天历史，加载最近的聊天
+            if (chatHistory.length > 0) {
+                loadChat(chatHistory[0].id);
+            }
+        }
+
+        // 更新管理员UI
+        function updateAdminUI() {
+            if (isAdmin) {
+                adminUploadSection.classList.remove('hidden');
+                nonAdminNotice.classList.add('hidden');
+                adminLoginButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                `;
+            } else {
+                adminUploadSection.classList.add('hidden');
+                nonAdminNotice.classList.remove('hidden');
+                adminLoginButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                `;
+            }
+        }
+
+        // 渲染知识库文件列表
+        function renderKnowledgeBaseFiles() {
+            const files = knowledgeBase.getAllFiles();
+
+            if (files.length === 0) {
+                noFilesMessage.classList.remove('hidden');
+                return;
+            }
+
+            noFilesMessage.classList.add('hidden');
+            knowledgeFiles.innerHTML = '';
+
+            files.forEach(file => {
+                addFileToUI(file);
+            });
+        }
+
+        // 标签切换
+        chatTabBtn.addEventListener('click', () => {
+            chatTab.classList.remove('hidden');
+            knowledgeTab.classList.add('hidden');
+            chatTabBtn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+            chatTabBtn.classList.remove('hover:bg-gray-200', 'dark:hover:bg-gray-700');
+            knowledgeTabBtn.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary');
+            knowledgeTabBtn.classList.add('hover:bg-gray-200', 'dark:hover:bg-gray-700');
+        });
+
+        knowledgeTabBtn.addEventListener('click', () => {
+            chatTab.classList.add('hidden');
+            knowledgeTab.classList.remove('hidden');
+            chatTabBtn.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary');
+            chatTabBtn.classList.add('hover:bg-gray-200', 'dark:hover:bg-gray-700');
+            knowledgeTabBtn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+            knowledgeTabBtn.classList.remove('hover:bg-gray-200', 'dark:hover:bg-gray-700');
+        });
+
+        // API密钥弹窗
+        apiKeyBtn.addEventListener('click', () => {
+            apiKeyModal.classList.remove('hidden');
+        });
+
+        apiKeyCancel.addEventListener('click', () => {
+            apiKeyModal.classList.add('hidden');
+        });
+
+        apiKeySave.addEventListener('click', () => {
+            apiKey = apiKeyInput.value.trim();
+            localStorage.setItem('deepseek_api_key', apiKey);
+            apiKeyModal.classList.add('hidden');
+        });
+
+        // 点击弹窗外部关闭弹窗
+        apiKeyModal.addEventListener('click', (e) => {
+            if (e.target === apiKeyModal) {
+                apiKeyModal.classList.add('hidden');
+            }
+        });
+
+        // 管理员登录弹窗
+        adminLoginButton.addEventListener('click', () => {
+            if (isAdmin) {
+                // 如果已经是管理员，点击按钮则登出
+                isAdmin = false;
+                localStorage.removeItem('is_admin');
+                updateAdminUI();
+                addMessage('system', '已退出管理员账号', true);
+            } else {
+                // 否则显示登录弹窗
+                adminLoginModal.classList.remove('hidden');
+                adminUsername.value = '';
+                adminPassword.value = '';
+                loginError.classList.add('hidden');
+            }
+        });
+
+        adminLoginCancel.addEventListener('click', () => {
+            adminLoginModal.classList.add('hidden');
+        });
+
+        adminLoginSubmit.addEventListener('click', () => {
+            const username = adminUsername.value.trim();
+            const password = adminPassword.value.trim();
+
+            if (username === 'admin666' && password === 'admin') {
+                isAdmin = true;
+                localStorage.setItem('is_admin', 'true');
+                updateAdminUI();
+                adminLoginModal.classList.add('hidden');
+                addMessage('system', '管理员登录成功，现在可以管理知识库', true);
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        // 点击弹窗外部关闭弹窗
+        adminLoginModal.addEventListener('click', (e) => {
+            if (e.target === adminLoginModal) {
+                adminLoginModal.classList.add('hidden');
+            }
+        });
+
+        // 知识库搜索
+        searchKbBtn.addEventListener('click', () => {
+            searchKbModal.classList.remove('hidden');
+            kbSearchInput.value = '';
+            kbSearchPlaceholder.style.display = 'block';
+            kbSearchResults.innerHTML = `
+                <div class="text-center text-gray-500 dark:text-gray-400 py-4" id="kb-search-placeholder">
+                    输入关键词开始搜索
+                </div>
+            `;
+        });
+
+        kbSearchBtn.addEventListener('click', () => {
+            const query = kbSearchInput.value.trim();
+            if (!query) return;
+
+            const results = knowledgeBase.search(query);
+
+            kbSearchResults.innerHTML = '';
+
+            if (results.length === 0) {
+                kbSearchResults.innerHTML = `
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                        未找到相关内容
+                    </div>
+                `;
+                return;
+            }
+
+            results.forEach(result => {
+                const resultElement = document.createElement('div');
+                resultElement.className = 'bg-gray-50 dark:bg-gray-800 p-4 rounded-lg';
+
+                let snippetsHTML = '';
+                if (result.snippets.length > 0) {
+                    snippetsHTML = `
+                        <div class="mt-2 text-sm">
+                            ${result.snippets.map(snippet => `
+                                <div class="mb-2 p-2 bg-white dark:bg-gray-700 rounded">
+                                    ${snippet}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                resultElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="font-medium">${result.file.name}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">相关度: ${result.score}</div>
+                    </div>
+                    ${snippetsHTML}
+                    <button class="use-in-chat mt-2 text-sm text-primary hover:underline" data-file-id="${result.file.id}">
+                        用此知识回答问题
+                    </button>
+                `;
+
+                kbSearchResults.appendChild(resultElement);
+
+                // 添加事件监听
+                const useInChatBtn = resultElement.querySelector('.use-in-chat');
+                useInChatBtn.addEventListener('click', () => {
+                    activateKnowledgeBaseFile(result.file.id);
+                    searchKbModal.classList.add('hidden');
+                    chatTabBtn.click();
+                });
+            });
+        });
+
+        kbSearchClose.addEventListener('click', () => {
+            searchKbModal.classList.add('hidden');
+        });
+
+        // 点击弹窗外部关闭弹窗
+        searchKbModal.addEventListener('click', (e) => {
+            if (e.target === searchKbModal) {
+                searchKbModal.classList.add('hidden');
+            }
+        });
+
+        // 发送消息
+        sendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            if (!apiKey) {
+                addMessage('system', '请先设置您的API密钥。', true);
+                apiKeyModal.classList.remove('hidden');
+                return;
+            }
+
+            // 清空输入框
+            chatInput.value = '';
+
+            // 如果需要，创建或加载聊天
+            if (!currentChatId) {
+                createNewChat(message.substring(0, 30) + '...');
+            }
+
+            // 更新聊天历史
+            const chatIdx = chatHistory.findIndex(chat => chat.id === currentChatId);
+            if (chatIdx !== -1) {
+                chatHistory[chatIdx].messages.push({
+                    role: 'user',
+                    content: message
+                });
+
+                // 将此聊天移到列表顶部
+                const currentChat = chatHistory.splice(chatIdx, 1)[0];
+                chatHistory.unshift(currentChat);
+
+                // 更新localStorage
+                saveChats();
+                renderChatHistory();
+            }
+
+            // 添加消息到UI
+            addMessage('user', message, true);
+
+            // 准备加载指示器
+            const loadingId = 'loading-' + Date.now();
+            addMessage('assistant', '<div class="flex space-x-2 items-center"><div class="animate-pulse">思考中</div><div class="flex space-x-1"><div class="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style="animation-delay: 0s"></div><div class="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style="animation-delay: 0.2s"></div><div class="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style="animation-delay: 0.4s"></div></div></div>', false, loadingId);
+
+            try {
+                // 准备消息，包括知识库上下文的系统消息
+                let messages = [];
+
+                // 如果有知识库，添加系统消息和知识库上下文
+                if (activeKnowledgeBaseFile) {
+                    // 获取相关知识
+                    const knowledge = knowledgeBase.getKnowledgeForQuery(message);
+
+                    messages.push({
+                        role: 'system',
+                        content: `你是一个校园AI知识库助手，请根据以下知识库内容回答用户问题。
+当前知识库文件: ${activeKnowledgeBaseFile.name}
+
+知识库相关内容:
+${knowledge}
+
+在回答时，请优先使用知识库内容。如果知识库内没有相关信息，可以基于你的常识合理回答，但要明确告知用户这是基于常识的回答而非知识库内容。`
+                    });
+                } else {
+                    messages.push({
+                        role: 'system',
+                        content: '你是一个校园AI知识库助手，请基于常识回答用户的问题。如果用户询问的内容涉及特定学校信息，建议用户激活相关知识库以获取更准确的回答。'
+                    });
+                }
+
+                messages.push({
+                    role: 'user',
+                    content: message
+                });
+
+                const response = await sendDeepSeekMessage({
+                    apiKey,
+                    messages
+                });
+
+                // 移除加载指示器
+                const loadingElement = document.getElementById(loadingId);
+                if (loadingElement) loadingElement.remove();
+
+                // 解析和显示Markdown内容
+                const markdownContent = marked.parse(response.choices[0].message.content);
+                addMessage('assistant', markdownContent, false);
+
+                // 更新聊天历史
+                chatHistory[0].messages.push({
+                    role: 'assistant',
+                    content: response.choices[0].message.content
+                });
+
+                // 更新localStorage
+                saveChats();
+            } catch (error) {
+                console.error('发送消息失败:', error);
+
+                // 移除加载指示器
+                const loadingElement = document.getElementById(loadingId);
+                if (loadingElement) loadingElement.remove();
+
+                // 显示错误消息
+                addMessage('system', `发送消息失败: ${error.message}`, true);
+            }
+        }
+
+        // 将消息添加到聊天UI
+        function addMessage(role, content, scrollToBottom = true, elementId = null) {
+            // 如果存在欢迎消息，清除它
+            if (chatMessages.querySelector('div.flex.justify-center.items-center.h-full')) {
+                chatMessages.innerHTML = '';
+            }
+
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = 'message-wrapper';
+
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${role === 'user' ? 'user-bubble' : role === 'system' ? 'system-bubble' : 'assistant-bubble'}`;
+            if (elementId) {
+                bubble.id = elementId;
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // 支持markdown渲染
+            if (role === 'assistant' || role === 'system') {
+                contentDiv.innerHTML = content;
+            } else {
+                contentDiv.textContent = content;
+            }
+
+            bubble.appendChild(contentDiv);
+            messageWrapper.appendChild(bubble);
+            chatMessages.appendChild(messageWrapper);
+
+            if (scrollToBottom) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        // 文件上传
+        fileUpload.addEventListener('change', handleFileUpload);
+
+        async function handleFileUpload(event) {
+            if (!isAdmin) {
+                addMessage('system', '只有管理员可以上传文件。', true);
+                return;
+            }
+
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            for (const file of files) {
+                try {
+                    // 检查文件大小（最大300MB）
+                    if (file.size > 300 * 1024 * 1024) {
+                        alert(`文件 ${file.name} 超过300MB限制。`);
+                        continue;
+                    }
+
+                    const fileData = await readFile(file);
+                    const fileObj = {
+                        id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        content: fileData
+                    };
+
+                    try {
+                        knowledgeBase.addFile(fileObj);
+                        addFileToUI(fileObj);
+
+                        // 如果有文件，隐藏"没有文件"消息
+                        if (knowledgeBase.getAllFiles().length > 0) {
+                            noFilesMessage.classList.add('hidden');
+                        }
+                    } catch (error) {
+                        alert(error.message);
+                    }
+                } catch (error) {
+                    console.error(`读取文件 ${file.name} 时出错:`, error);
+                    alert(`读取文件 ${file.name} 时出错: ${error.message}`);
+                }
+            }
+
+            // 重置文件输入框
+            fileUpload.value = '';
+        }
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    resolve(e.target.result);
+                };
+
+                reader.onerror = function(e) {
+                    reject(new Error('文件读取失败'));
+                };
+
+                if (file.type === 'application/pdf' || file.type.includes('docx')) {
+                    // 对于PDF和DOCX，我们将其存储为数据URL
+                    reader.readAsDataURL(file);
+                } else {
+                    // 对于文本文件，读取为文本
+                    reader.readAsText(file);
+                }
+            });
+        }
+
+        function addFileToUI(fileObj) {
+            const fileElement = document.createElement('div');
+            fileElement.className = 'knowledge-file';
+            fileElement.dataset.fileId = fileObj.id;
+
+            // 根据类型获取文件图标
+            let fileIcon = '';
+            if (fileObj.type === 'application/pdf') {
+                fileIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>';
+            } else if (fileObj.type === 'application/json') {
+                fileIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>';
+            } else if (fileObj.type.includes('docx')) {
+                fileIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>';
+            } else {
+                fileIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>';
+            }
+
+            const isActive = activeKnowledgeBaseFile && activeKnowledgeBaseFile.id === fileObj.id;
+
+            // 格式化文件大小
+            const formatFileSize = (bytes) => {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+            };
+
+            fileElement.innerHTML = `
+                <div class="flex items-center gap-2 flex-grow">
+                    ${fileIcon}
+                    <div>
+                        <div class="font-medium truncate max-w-[150px]">${fileObj.name}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(fileObj.size)}</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="activate-file-btn p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 ${isActive ? 'text-primary' : ''}">
+                        ${isActive ? '已激活' : '激活'}
+                    </button>
+                    ${isAdmin ? `
+                    <button class="delete-file-btn p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-red-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                    ` : ''}
+                </div>
+            `;
+
+            knowledgeFiles.appendChild(fileElement);
+
+            // 添加事件监听器
+            const activateBtn = fileElement.querySelector('.activate-file-btn');
+            activateBtn.addEventListener('click', () => {
+                activateKnowledgeBaseFile(fileObj.id);
+            });
+
+            const deleteBtn = fileElement.querySelector('.delete-file-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                    if (isAdmin) {
+                        deleteKnowledgeBaseFile(fileObj.id);
+                    } else {
+                        addMessage('system', '只有管理员可以删除文件。', true);
+                    }
+                });
+            }
+        }
+
+        function activateKnowledgeBaseFile(fileId) {
+            const file = knowledgeBase.getFile(fileId);
+            if (!file) return;
+
+            // 将此文件设置为活动文件
+            activeKnowledgeBaseFile = file;
+
+            // 更新UI以显示活动文件
+            document.querySelectorAll('.activate-file-btn').forEach(btn => {
+                const fileElement = btn.closest('.knowledge-file');
+                if (fileElement.dataset.fileId === fileId) {
+                    btn.textContent = '已激活';
+                    btn.classList.add('text-primary');
+                } else {
+                    btn.textContent = '激活';
+                    btn.classList.remove('text-primary');
+                }
+            });
+
+            // 在聊天中显示活动知识库信息
+            activeKnowledgeBase.classList.remove('hidden');
+            activeKbName.textContent = activeKnowledgeBaseFile.name;
+
+            // 切换到聊天标签
+            chatTabBtn.click();
+        }
+
+        function deleteKnowledgeBaseFile(fileId) {
+            if (!isAdmin) {
+                addMessage('system', '只有管理员可以删除文件。', true);
+                return;
+            }
+
+            // 从知识库中删除文件
+            const success = knowledgeBase.removeFile(fileId);
+            if (!success) return;
+
+            // 如果这是活动文件，清除活动文件
+            if (activeKnowledgeBaseFile && activeKnowledgeBaseFile.id === fileId) {
+                activeKnowledgeBaseFile = null;
+                activeKnowledgeBase.classList.add('hidden');
+            }
+
+            // 从UI中删除
+            const fileElement = document.querySelector(`.knowledge-file[data-file-id="${fileId}"]`);
+            if (fileElement) {
+                fileElement.remove();
+            }
+
+            // 如果没有文件，显示"没有文件"消息
+            if (knowledgeBase.getAllFiles().length === 0) {
+                noFilesMessage.classList.remove('hidden');
+            }
+        }
+
+        // 聊天历史功能 - 新建聊天按钮
+        newChatBtn.addEventListener('click', () => {
+            createNewChat('新对话');
+            chatMessages.innerHTML = '';
+            chatInput.focus();
+        });
+
+        // 删除聊天弹窗事件
+        deleteChatCancel.addEventListener('click', () => {
+            deleteChatModal.classList.add('hidden');
+            chatToDelete = null;
+        });
+
+        deleteChatConfirm.addEventListener('click', () => {
+            deleteChat(chatToDelete);
+            deleteChatModal.classList.add('hidden');
+            chatToDelete = null;
+        });
+
+        // 点击弹窗外部关闭弹窗
+        deleteChatModal.addEventListener('click', (e) => {
+            if (e.target === deleteChatModal) {
+                deleteChatModal.classList.add('hidden');
+                chatToDelete = null;
+            }
+        });
+
+        // 聊天历史功能
+        function createNewChat(title = '新对话') {
+            // 为聊天生成唯一ID
+            const chatId = 'chat-' + Date.now();
+
+            // 创建新的聊天对象
+            const newChat = {
+                id: chatId,
+                title: title || '新对话',
+                created: Date.now(),
+                messages: []
+            };
+
+            // 将其添加到历史数组的开头（最近的最先）
+            chatHistory.unshift(newChat);
+
+            // 限制为10个聊天
+            if (chatHistory.length > 10) {
+                chatHistory.pop();
+            }
+
+            // 保存到localStorage
+            saveChats();
+
+            // 更新UI
+            renderChatHistory();
+
+            // 设置为当前聊天
+            currentChatId = chatId;
+
+            // 清除消息
+            chatMessages.innerHTML = '';
+
+            return chatId;
+        }
+
+        function loadChat(chatId) {
+            // 在历史记录中查找聊天
+            const chat = chatHistory.find(c => c.id === chatId);
+            if (!chat) return;
+
+            // 设置为当前聊天
+            currentChatId = chatId;
+
+            // 清除消息
+            chatMessages.innerHTML = '';
+
+            // 从历史记录添加消息
+            chat.messages.forEach(msg => {
+                // 如果是assistant消息，使用marked解析markdown
+                const content = msg.role === 'assistant' ? marked.parse(msg.content) : msg.content;
+                addMessage(msg.role, content, false);
+            });
+
+            // 滚动到底部
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // 在UI中更新选中状态
+            document.querySelectorAll('.chat-item').forEach(item => {
+                if (item.dataset.chatId === chatId) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        function deleteChat(chatId) {
+            // 找到聊天在数组中的索引
+            const index = chatHistory.findIndex(chat => chat.id === chatId);
+            if (index === -1) return;
+
+            // 从数组中删除聊天
+            chatHistory.splice(index, 1);
+
+            // 更新localStorage
+            saveChats();
+
+            // 更新UI
+            renderChatHistory();
+
+            // 如果删除的是当前聊天，加载另一个聊天（如果有）
+            if (chatId === currentChatId) {
+                if (chatHistory.length > 0) {
+                    loadChat(chatHistory[0].id);
+                } else {
+                    currentChatId = null;
+                    chatMessages.innerHTML = `
+                        <div class="flex justify-center items-center h-full flex-col gap-4 text-center text-gray-500 dark:text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            <h2 class="text-xl font-semibold">欢迎使用AI知识库助手</h2>
+                            <p class="max-w-md">提出任何问题或上传知识库文件获取更准确的回答。</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function saveChats() {
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        }
+
+        function renderChatHistory() {
+            chatHistoryList.innerHTML = '';
+
+            chatHistory.forEach(chat => {
+                const chatItem = document.createElement('div');
+                chatItem.className = `chat-item flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-all ${currentChatId === chat.id ? 'active pl-1' : ''}`;
+                chatItem.dataset.chatId = chat.id;
+
+                // 左侧图标和标题
+                const leftContent = document.createElement('div');
+                leftContent.className = 'flex items-center flex-grow overflow-hidden';
+                leftContent.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <span class="truncate">${chat.title}</span>
+                `;
+
+                // 右侧操作按钮（删除）
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'chat-item-actions ml-2';
+                actionsDiv.innerHTML = `
+                    <button class="delete-chat-btn p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                `;
+
+                chatItem.appendChild(leftContent);
+                chatItem.appendChild(actionsDiv);
+
+                // 点击聊天项加载该聊天
+                leftContent.addEventListener('click', () => {
+                    // 视觉反馈
+                    chatItem.classList.add('bg-gray-200', 'dark:bg-gray-700');
+                    setTimeout(() => {
+                        chatItem.classList.remove('bg-gray-200', 'dark:bg-gray-700');
+                        loadChat(chat.id);
+                    }, 150);
+                });
+
+                // 点击删除按钮
+                const deleteBtn = actionsDiv.querySelector('.delete-chat-btn');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 防止触发聊天项的点击事件
+                    chatToDelete = chat.id;
+                    deleteChatModal.classList.remove('hidden');
+                });
+
+                chatHistoryList.appendChild(chatItem);
+            });
+        }
+
+        // 初始化应用
+        init();
+    });
+</script>
+</body>
+<footer class="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+    <p>作者: 天狼</p>
+    <p>联系QQ: 2090256385</p>
+    <p>版本: 2025 v0.1</p>
+</footer>
+</html>
